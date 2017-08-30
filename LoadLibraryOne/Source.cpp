@@ -1,46 +1,40 @@
-#include <Windows.h>
+#include <windows.h>
 #include <TlHelp32.h>
 #include <chrono>
 #include <thread>
+#include <libloaderapi.h>
+#include <ostream>
 
-#define PROCESS_OPEN_FLAGS PROCESS_CREATE_THREAD | PROCESS_QUERY_INFORMATION | PROCESS_VM_READ | PROCESS_VM_WRITE | PROCESS_VM_OPERATION
+#define DEFAULT_CONFIG "[Options]\r\nprocess=\"calc.exe\"\r\ndll=\"inject.dll\""
 
 DWORD ProcessID(const char* ProcessName)
 {
-	// First of all we create a snapshot handle specific for processes
-	// (notice the usage of TH32CS_SNAPPROCESS) so we are able to call Process32First/Next
-	// Remeber to close it when you don't use it anymore!
+	//Create a snapshot of all running processes
 	HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, NULL);
-	// Check if the snapshot created is valid
 	if (hSnapshot == INVALID_HANDLE_VALUE) return false;
 
-	// Create the helper struct that will contain all the infos about the current process
-	// while we loop through all the running processes
+	//Used to store the process info in the loop
 	PROCESSENTRY32 ProcEntry;
-	// Remember to set the dwSize member of ProcEntry to sizeof(PROCESSENTRY32)
 	ProcEntry.dwSize = sizeof(PROCESSENTRY32);
 
-	DWORD returnID = 0;
-
-	// Call Process32First
+	//Get the first process
 	if (Process32First(hSnapshot, &ProcEntry)) {
 		do
 		{
-			// Notice that you have to enable Multi-Byte character set in order
-			// to avoid converting everything.
-			// strcmp is not the only way to compare 2 strings ofc, work with your imagination
+			//If the found process name is equal to the on we're searching for
 			if (!strcmp(ProcEntry.szExeFile, ProcessName))
 			{
-				// If we are here it means that the process has been found
-				// Store the process id into m_dwProcessId
-				returnID = ProcEntry.th32ProcessID;
-				// Return true meaning success
+				CloseHandle(hSnapshot);
+				//Return the processID of the found process
+				//TODO: return a list of found processes instead
+				return ProcEntry.th32ProcessID;
 			}
-		} while (Process32Next(hSnapshot, &ProcEntry));
+		} while (Process32Next(hSnapshot, &ProcEntry)); //Get the next process
 	}
 
 	CloseHandle(hSnapshot);
-	return returnID;
+	//Since a process hasn't been found, return 0
+	return 0;
 }
 
 void ErrorHandling(const char* FunctionName, const char* Message = "")
@@ -50,13 +44,17 @@ void ErrorHandling(const char* FunctionName, const char* Message = "")
 		DWORD code = GetLastError();
 		FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, nullptr, code,
 			MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), err, 255, nullptr);
-		printf("%s: %s", FunctionName, err);
+		char out[256];
+		sprintf(out, "%s: %s", FunctionName, err);
+		MessageBox(nullptr, out, "LoadLibraryOne", MB_OK | MB_ICONSTOP);
 		std::this_thread::sleep_for(std::chrono::milliseconds(3000));
 		exit(code);
 	}
 	else
 	{
-		printf("%s: %s", FunctionName, Message);
+		char out[256];
+		sprintf(out, "%s: %s", FunctionName, Message);
+		MessageBox(nullptr, out, "LoadLibraryOne", MB_OK | MB_ICONSTOP);
 		std::this_thread::sleep_for(std::chrono::milliseconds(3000));
 		exit(-1);
 	}
@@ -71,19 +69,74 @@ BOOL FileExists(LPCTSTR szPath)
 		!(dwAttrib & FILE_ATTRIBUTE_DIRECTORY));
 }
 
-int main()
+HMODULE GrabModule(DWORD processID, const char* strModuleName)
 {
+	HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, processID);
+	// Check if the snapshot created is valid
+	if (hSnapshot == INVALID_HANDLE_VALUE) return nullptr;
+
+	MODULEENTRY32 ModEntry;
+	// Call Module32First
+	if (Module32First(hSnapshot, &ModEntry))
+	{
+		do
+		{
+			// Notice that you have to enable Multi-Byte character set in order
+			// to avoid converting everything.
+			// strcmp is not the only way to compare 2 strings ofc, work with your imagination
+			if (!strcmp(ModEntry.szModule, strModuleName))
+			{
+				// If we are here it means that the module has been found, we can add the module to the vector
+				// But first of all we have to close the snapshot handle!
+				CloseHandle(hSnapshot);
+				// Add ModEntry to the m_Modules vector
+				return HMODULE(ModEntry.modBaseAddr);
+			}
+		} while (Module32Next(hSnapshot, &ModEntry));
+	}
+	// If we are here it means that the module has not been found or that there are no modules to scan for anymore.
+	// We can close the snapshot handle and return false.
+	CloseHandle(hSnapshot);
+	return nullptr;
+}
+
+int WinMain(HINSTANCE hInstance,
+	HINSTANCE hPrevInstance,
+	LPTSTR    lpCmdLine,
+	int       cmdShow)
+{
+	char ini[256];
+	GetCurrentDirectory(MAX_PATH, ini);
+	strcat(ini, "\\config.ini");
+	DWORD attributes = GetFileAttributes(ini);
+	if((attributes == INVALID_FILE_ATTRIBUTES ||
+		(attributes & FILE_ATTRIBUTE_DIRECTORY)))
+	{
+		HANDLE hFile = CreateFile(ini, GENERIC_WRITE, FILE_SHARE_WRITE, nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
+		if(!hFile || hFile == INVALID_HANDLE_VALUE)
+			ErrorHandling("Ini file", "Config file not found. An attempt to create a config file was also unsuccessful");
+		WriteFile(hFile, DEFAULT_CONFIG, sizeof(DEFAULT_CONFIG), nullptr, nullptr);
+		ErrorHandling("Ini file", "Config file not found. A default config file has been created in the current directory.");
+	}
+
+	char process[255];
+	char file[255];
+	GetPrivateProfileString("Options", "process", nullptr, process, 255, ini);
+	GetPrivateProfileString("Options", "dll", nullptr, file, 255, ini);
+	if (process == "") ErrorHandling("Config", "Process name in config file is blank");
+	if (file == "") ErrorHandling("Config", "DLL name in config file is blank");
+
+
 	//Get the ID of the csgo process
-	//TODO: config to allow different processes
-	DWORD processID = ProcessID("csgo.exe");
-	//TODO: Actual error reporting
+	DWORD processID = ProcessID(process);
 	if (!processID) ErrorHandling("ProcessID", "Process ID not found");
 	//Get the full path of our .dll
 	char dll[MAX_PATH];
-	DWORD PathNameResult = GetFullPathName("inject.dll", MAX_PATH, dll, nullptr);
+	DWORD PathNameResult = GetFullPathName(file, MAX_PATH, dll, nullptr);
 	if (!PathNameResult) ErrorHandling("GetFullPathName");
 	if (PathNameResult > MAX_PATH) ErrorHandling("GetFullPathName", "Path Length too short");
 	if (!FileExists(dll)) ErrorHandling("FileExists", "Dll to inject does not exist");
+	if (GrabModule(processID, file)) ErrorHandling("GrabModule", "Dll already injected");
 
 	//Get a handle to the process
 	HANDLE Process = OpenProcess(PROCESS_ALL_ACCESS, FALSE, processID);
@@ -96,19 +149,16 @@ int main()
 	if (!WriteProcessMemory(Process, Memory, dll, MAX_PATH	, nullptr)) ErrorHandling("WriteProcessMemory");
 
 	// Load our DLL
-	FARPROC loadLibraryAddr = GetProcAddress(GetModuleHandle("kernel32.dl"), "LoadLibraryA");
-	HANDLE hThread = CreateRemoteThread(Process, nullptr, NULL, LPTHREAD_START_ROUTINE(loadLibraryAddr), Memory, NULL, nullptr);
+	HANDLE hThread = CreateRemoteThread(Process, nullptr, NULL, LPTHREAD_START_ROUTINE(LoadLibraryA), Memory, NULL, nullptr);
 	if (!hThread) ErrorHandling("CreateRemoteThread");
-
-	DWORD dwExit;
-	WaitForSingleObject(hThread, INFINITE);
-	GetExitCodeThread(hThread, &dwExit);
 
 	//Let the program regain control of itself.
 	CloseHandle(Process);
 
 	//Free the allocated memory.
 	VirtualFreeEx(Process, LPVOID(Memory), 0, MEM_RELEASE);
+
+	MessageBox(nullptr, "File successfully injected", "LoadLibraryOne", MB_OK | MB_ICONINFORMATION);
 
 	return 0;
 }

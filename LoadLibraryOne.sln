@@ -4,10 +4,11 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 VisualStudioVersion = 15.0.26228.4
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "LoadLibraryOne", "LoadLibraryOne\LoadLibraryOne.vcxproj", "{FE855C1E-3468-4C9D-848D-48CE55C9C500}"
+	ProjectSection(ProjectDependencies) = postProject
+		{3512F747-EFB8-497A-ADC0-740D818D8865} = {3512F747-EFB8-497A-ADC0-740D818D8865}
+	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "inject", "inject\inject.vcxproj", "{3512F747-EFB8-497A-ADC0-740D818D8865}"
-EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "FreeLibraryOne", "FreeLibraryOne\FreeLibraryOne.vcxproj", "{D9B15CFF-E805-4FBA-932C-28F4DB3E198C}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -33,14 +34,6 @@ Global
 		{3512F747-EFB8-497A-ADC0-740D818D8865}.Release|x64.Build.0 = Release|x64
 		{3512F747-EFB8-497A-ADC0-740D818D8865}.Release|x86.ActiveCfg = Release|Win32
 		{3512F747-EFB8-497A-ADC0-740D818D8865}.Release|x86.Build.0 = Release|Win32
-		{D9B15CFF-E805-4FBA-932C-28F4DB3E198C}.Debug|x64.ActiveCfg = Debug|x64
-		{D9B15CFF-E805-4FBA-932C-28F4DB3E198C}.Debug|x64.Build.0 = Debug|x64
-		{D9B15CFF-E805-4FBA-932C-28F4DB3E198C}.Debug|x86.ActiveCfg = Debug|Win32
-		{D9B15CFF-E805-4FBA-932C-28F4DB3E198C}.Debug|x86.Build.0 = Debug|Win32
-		{D9B15CFF-E805-4FBA-932C-28F4DB3E198C}.Release|x64.ActiveCfg = Release|x64
-		{D9B15CFF-E805-4FBA-932C-28F4DB3E198C}.Release|x64.Build.0 = Release|x64
-		{D9B15CFF-E805-4FBA-932C-28F4DB3E198C}.Release|x86.ActiveCfg = Release|Win32
-		{D9B15CFF-E805-4FBA-932C-28F4DB3E198C}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
