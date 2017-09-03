@@ -1,10 +1,7 @@
 #include <Windows.h>
 #include <Psapi.h>
 #include <stdarg.h>
-#include <chrono>
 #include <thread>
-#include <string>
-
 
 BOOLEAN WINAPI DllMain(IN HINSTANCE, IN DWORD, IN LPVOID);
 
